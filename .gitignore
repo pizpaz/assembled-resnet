@@ -1,0 +1,13 @@
+target
+dist
+c3
+venv
+.idea
+*.pyc
+*.swp
+*.log
+tags
+cscope.*
+.DS_Store
+ffmpeg
+
