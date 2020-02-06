@@ -49,6 +49,14 @@ flags.DEFINE_string(name='autoaugment_type', default=None,
                     'To use numpy implementation, prefix "np_" to the type.'))
 
 
+##### Experimental
+
+# 0=>gap
+flags.DEFINE_string(name='last_pool_channel_type', default="gap",
+                     help=flags_core.help_wrap(''))
+
+
+
 def build_stats(train_result, eval_result, time_callback):
   """Normalizes and returns dictionary of stats.
 
@@ -244,6 +252,7 @@ def run(flags_obj):
         num_classes=imagenet_preprocessing.NUM_CLASSES,
         batch_size=flags_obj.batch_size,
         zero_gamma=flags_obj.zero_gamma,
+        last_pool_channel_type=flags_obj.last_pool_channel_type,
         use_l2_regularizer=not flags_obj.single_l2_loss_op)
 
     lr_schedule = common.PiecewiseConstantDecayWithWarmup(

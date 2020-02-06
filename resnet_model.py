@@ -273,6 +273,7 @@ def conv_block(input_tensor,
 def resnet50(num_classes,
              batch_size=None,
              zero_gamma=False,
+             last_pool_channel_type='gap',
              use_l2_regularizer=True,
              rescale_inputs=False):
   """Instantiates the ResNet50 architecture.
@@ -447,8 +448,25 @@ def resnet50(num_classes,
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer)
 
-  rm_axes = [1, 2] if backend.image_data_format() == 'channels_last' else [2, 3]
-  x = layers.Lambda(lambda x: backend.mean(x, rm_axes), name='reduce_mean')(x)
+  if last_pool_channel_type == 'gap':
+    rm_axes = [1, 2] if backend.image_data_format() == 'channels_last' else [2, 3]
+    x = layers.Lambda(lambda x: backend.mean(x, rm_axes), name='reduce_mean')(x)
+
+  else:
+    pool_type, channel_size = last_pool_channel_type.split('_')
+    channel_size = int(channel_size)
+    (wa, ha) = (1, 2) if backend.image_data_format == 'channels_last' else (2, 3)
+    xs = tf.shape(x)
+    #channel_size가 64이면 최종 x는 32*7*7=1568, 32이면 64*7*7=3136
+    x = tf.reshape(x, [xs[0], channel_size, -1, xs[wa], xs[ha]])
+    if pool_type == 'mean':
+      x = layers.Lambda(lambda x: backend.mean(x, [1]), name='reduce_mean')(x)
+    elif pool_type == 'max':
+      x = layers.Lambda(lambda x: backend.max(x, [1]), name='reduce_mean')(x)
+    else:
+      raise NotImplementedError
+    x = layers.Flatten()(x)
+
   x = layers.Dense(
       num_classes,
       kernel_initializer=initializers.RandomNormal(stddev=0.01),
