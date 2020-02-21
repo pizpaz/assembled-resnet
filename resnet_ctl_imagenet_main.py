@@ -47,10 +47,13 @@ flags.DEFINE_string(name='autoaugment_type', default=None,
                     help=flags_core.help_wrap(
                     'Specifies auto augmentation type. One of "imagenet", "svhn", "cifar", "good"'
                     'To use numpy implementation, prefix "np_" to the type.'))
+flags.DEFINE_string(name='learning_rate_decay_type', short_name='lrdt', default='exponential',
+                    help=flags_core.help_wrap(
+                    'Specifies how the learning rate is decayed. One of '
+                    '"piecewise", "cosine"'))
 
 
 ##### Experimental
-
 # 0=>gap
 flags.DEFINE_string(name='last_pool_channel_type', default="gap",
                      help=flags_core.help_wrap(''))

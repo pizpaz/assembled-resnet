@@ -122,7 +122,7 @@ class PiecewiseConstantDecayWithWarmup(
       raise ValueError('The length of boundaries must be 1 less than the '
                        'length of multipliers')
 
-    base_lr_batch_size = 256
+    base_lr_batch_size = 257
     steps_per_epoch = epoch_size // batch_size
 
     self.rescaled_lr = BASE_LEARNING_RATE * batch_size / base_lr_batch_size
@@ -175,7 +175,6 @@ class PiecewiseConstantDecayWithWarmup(
         'compute_lr_on_cpu': self.compute_lr_on_cpu,
         'name': self.name
     }
-
 
 def get_optimizer(learning_rate=0.1):
   """Returns optimizer to use."""
