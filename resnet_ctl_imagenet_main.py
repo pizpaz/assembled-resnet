@@ -40,6 +40,9 @@ flags.DEFINE_boolean(name='use_tf_function', default=True,
 flags.DEFINE_boolean(name='single_l2_loss_op', default=False,
                      help='Calculate L2_loss on concatenated weights, '
                           'instead of using Keras per-layer L2 loss.')
+
+flags.DEFINE_float(name='base_learning_rate', short_name='blr', default=0.01,
+                   help=flags_core.help_wrap('Base learning rate.'))
 flags.DEFINE_boolean(name='zero_gamma', default=False,
                      help=flags_core.help_wrap(
                        'If True, we initialize gamma = 0 for all BN layers that sit at the end of a residual block'))
@@ -258,13 +261,25 @@ def run(flags_obj):
         last_pool_channel_type=flags_obj.last_pool_channel_type,
         use_l2_regularizer=not flags_obj.single_l2_loss_op)
 
-    lr_schedule = common.PiecewiseConstantDecayWithWarmup(
-        batch_size=flags_obj.batch_size,
-        epoch_size=imagenet_preprocessing.NUM_IMAGES['train'],
-        warmup_epochs=common.LR_SCHEDULE[0][1],
-        boundaries=list(p[1] for p in common.LR_SCHEDULE[1:]),
-        multipliers=list(p[0] for p in common.LR_SCHEDULE),
-        compute_lr_on_cpu=True)
+    if flags_obj.learning_rate_decay_type == 'piecewise':
+        lr_schedule = common.PiecewiseConstantDecayWithWarmup(
+            batch_size=flags_obj.batch_size,
+            epoch_size=imagenet_preprocessing.NUM_IMAGES['train'],
+            warmup_epochs=common.LR_SCHEDULE[0][1],
+            boundaries=list(p[1] for p in common.LR_SCHEDULE[1:]),
+            multipliers=list(p[0] for p in common.LR_SCHEDULE),
+            compute_lr_on_cpu=True)
+    elif flags_obj.learning_rate_decay_type == 'cosine':
+        lr_schedule = common.CosineDecayWithWarmup(
+            base_lr=flags_obj.base_learning_rate,
+            batch_size=flags_obj.batch_size,
+            epoch_size=imagenet_preprocessing.NUM_IMAGES['train'],
+            warmup_epochs=common.LR_SCHEDULE[0][1],
+            train_epochs=flags_obj.train_epochs,
+            compute_lr_on_cpu=True)
+    else:
+        raise NotImplementedError
+
 
     optimizer = common.get_optimizer(lr_schedule)
 

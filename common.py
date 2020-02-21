@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+from abc import abstractmethod
 
 from absl import flags
 import numpy as np
@@ -110,6 +111,33 @@ class LearningRateBatchScheduler(tf.keras.callbacks.Callback):
           'Epoch %05d Batch %05d: LearningRateBatchScheduler '
           'change learning rate to %s.', self.epochs, batch, lr)
 
+class LearningRateDecayWithWarmup(
+    tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, compute_lr_on_cpu=True):
+        super(LearningRateDecayWithWarmup, self).__init__()
+        self.learning_rate_ops_cache = {}
+        self.compute_lr_on_cpu = compute_lr_on_cpu
+
+    def __call__(self, step):
+        if tf.executing_eagerly():
+            return self._get_learning_rate(step)
+
+        # In an eager function or graph, the current implementation of optimizer
+        # repeatedly call and thus create ops for the learning rate schedule. To
+        # avoid this, we cache the ops if not executing eagerly.
+        graph = tf.compat.v1.get_default_graph()
+        if graph not in self.learning_rate_ops_cache:
+            if self.compute_lr_on_cpu:
+                with tf.device('/device:CPU:0'):
+                    self.learning_rate_ops_cache[graph] = self._get_learning_rate(step)
+            else:
+                self.learning_rate_ops_cache[graph] = self._get_learning_rate(step)
+        return self.learning_rate_ops_cache[graph]
+
+    @abstractmethod
+    def _get_learning_rate(self, step):
+        return
 
 class PiecewiseConstantDecayWithWarmup(
     tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -122,7 +150,7 @@ class PiecewiseConstantDecayWithWarmup(
       raise ValueError('The length of boundaries must be 1 less than the '
                        'length of multipliers')
 
-    base_lr_batch_size = 257
+    base_lr_batch_size = 256
     steps_per_epoch = epoch_size // batch_size
 
     self.rescaled_lr = BASE_LEARNING_RATE * batch_size / base_lr_batch_size
@@ -175,6 +203,37 @@ class PiecewiseConstantDecayWithWarmup(
         'compute_lr_on_cpu': self.compute_lr_on_cpu,
         'name': self.name
     }
+
+class CosineDecayWithWarmup(LearningRateDecayWithWarmup):
+    """Cosine decay with warmup schedule"""
+
+    def __init__(self, base_lr, batch_size, epoch_size, warmup_epochs, train_epochs, compute_lr_on_cpu=True,
+                 name=None):
+        super(CosineDecayWithWarmup, self).__init__(compute_lr_on_cpu)
+        print('Cosine Decay With Warmup')
+        steps_per_epoch = epoch_size // batch_size
+
+        self.initial_lr = base_lr
+        self.warmup_steps = warmup_epochs * steps_per_epoch
+        self.total_steps = int(steps_per_epoch * train_epochs) - self.warmup_steps
+        self.name = name
+
+    def _get_learning_rate(self, step):
+        super(CosineDecayWithWarmup, self)._get_learning_rate(step)
+        with tf.compat.v1.name_scope(self.name, 'CosineDecayWithWarmup',
+                                     [self.initial_lr, self.warmup_steps, self.total_steps,
+                                      self.compute_lr_on_cpu]):
+            def warmup_lr(step):
+                return self.initial_lr * (
+                        tf.cast(step, tf.float32) / tf.cast(self.warmup_steps, tf.float32))
+
+            def cosine_lr(step):
+                global_step_except_warmup_step = step - self.warmup_steps
+                return tf.compat.v1.train.cosine_decay(self.initial_lr, global_step_except_warmup_step, self.total_steps)
+
+            return tf.cond(step < self.warmup_steps,
+                           lambda: warmup_lr(step),
+                           lambda: cosine_lr(step))
 
 def get_optimizer(learning_rate=0.1):
   """Returns optimizer to use."""
