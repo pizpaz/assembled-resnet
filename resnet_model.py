@@ -262,7 +262,7 @@ def conv_block(input_tensor,
         name=conv_name_base + '1')(
             input_tensor)
   else:
-    shortcut = resnetd.shortcut(input_tensor, filters3, strides)
+    shortcut = resnetd.shortcut(input_tensor, filters3, strides, conv_name_base)
 
   shortcut = layers.BatchNormalization(
       axis=bn_axis,

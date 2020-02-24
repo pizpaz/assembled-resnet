@@ -69,7 +69,7 @@ class ResnetD(NetworkTweaks):
 
     return x
 
-  def shortcut(self, x, num_filters, strides):
+  def shortcut(self, x, num_filters, strides, name):
     logging.info('@@@shorcut ON!')
     x = layers.AveragePooling2D(pool_size=(2,2), strides=strides,
                                 padding='same', data_format=self.image_data_format)(
@@ -78,7 +78,8 @@ class ResnetD(NetworkTweaks):
       num_filters, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer))(
+      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer),
+      name=name + 'd1')(
       x)
 
     return x
