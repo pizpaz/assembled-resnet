@@ -28,6 +28,7 @@ import tensorflow as tf
 import imagenet_preprocessing
 import common
 import resnet_model
+import network_tweaks
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
@@ -52,6 +53,10 @@ flags.DEFINE_string(name='learning_rate_decay_type', short_name='lrdt', default=
                     'Specifies how the learning rate is decayed. One of '
                     '"piecewise", "cosine"'))
 
+#### Network Tweak
+flags.DEFINE_boolean(name='use_resnet_d', default=False,
+                     help=flags_core.help_wrap('Use resnet_d architecture. '
+                                               'For more details, refer to https://arxiv.org/abs/1812.01187'))
 
 ##### Experimental
 # 0=>gap
@@ -251,12 +256,21 @@ def run(flags_obj):
 
   with distribution_utils.get_strategy_scope(strategy):
     resnet_model.change_keras_layer(flags_obj.use_tf_keras_layers)
+    use_l2_regularizer = not flags_obj.single_l2_loss_op
+
+    if flags_obj.use_resnet_d:
+      resnetd = network_tweaks.ResnetD(image_data_format=tf.keras.backend.image_data_format(),
+                                       use_l2_regularizer=use_l2_regularizer)
+    else:
+      resnetd = None
+
     model = resnet_model.resnet50(
         num_classes=imagenet_preprocessing.NUM_CLASSES,
         batch_size=flags_obj.batch_size,
         zero_gamma=flags_obj.zero_gamma,
         last_pool_channel_type=flags_obj.last_pool_channel_type,
-        use_l2_regularizer=not flags_obj.single_l2_loss_op)
+        use_l2_regularizer=use_l2_regularizer,
+        resnetd=resnetd)
 
     lr_schedule = common.PiecewiseConstantDecayWithWarmup(
         batch_size=flags_obj.batch_size,

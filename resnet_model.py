@@ -27,6 +27,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from absl import logging
+
 import tensorflow as tf
 
 from tensorflow.python.keras import backend
@@ -166,7 +168,8 @@ def conv_block(input_tensor,
                block,
                strides=(2, 2),
                zero_gamma=False,
-               use_l2_regularizer=True):
+               use_l2_regularizer=True,
+               resnetd=None):
   """A block that has a conv layer at shortcut.
 
   Note that from stage 3,
@@ -249,14 +252,18 @@ def conv_block(input_tensor,
       name=bn_name_base + '2c')(
           x)
 
-  shortcut = layers.Conv2D(
-      filters3, (1, 1),
-      strides=strides,
-      use_bias=False,
-      kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
-      name=conv_name_base + '1')(
-          input_tensor)
+  if resnetd is None:
+    shortcut = layers.Conv2D(
+        filters3, (1, 1),
+        strides=strides,
+        use_bias=False,
+        kernel_initializer='he_normal',
+        kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+        name=conv_name_base + '1')(
+            input_tensor)
+  else:
+    shortcut = resnetd.shortcut(input_tensor, filters3, strides)
+
   shortcut = layers.BatchNormalization(
       axis=bn_axis,
       momentum=BATCH_NORM_DECAY,
@@ -275,7 +282,8 @@ def resnet50(num_classes,
              zero_gamma=False,
              last_pool_channel_type='gap',
              use_l2_regularizer=True,
-             rescale_inputs=False):
+             rescale_inputs=False,
+             resnetd=None):
   """Instantiates the ResNet50 architecture.
 
   Args:
@@ -312,15 +320,20 @@ def resnet50(num_classes,
     bn_axis = 3
 
   x = layers.ZeroPadding2D(padding=(3, 3), name='conv1_pad')(x)
-  x = layers.Conv2D(
-      64, (7, 7),
-      strides=(2, 2),
-      padding='valid',
-      use_bias=False,
-      kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
-      name='conv1')(
-          x)
+  if resnetd is None:
+    x = layers.Conv2D(
+        64, (7, 7),
+        strides=(2, 2),
+        padding='valid',
+        use_bias=False,
+        kernel_initializer='he_normal',
+        kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+        name='conv1')(
+            x)
+  else:
+    x = resnetd.input(x, 64)
+  logging.info("@first = {}".format(x))
+
   x = layers.BatchNormalization(
       axis=bn_axis,
       momentum=BATCH_NORM_DECAY,
@@ -330,6 +343,7 @@ def resnet50(num_classes,
           x)
   x = layers.Activation('relu')(x)
   x = layers.MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
+  logging.info("@2 = {}".format(x))
 
   x = conv_block(
       x,
@@ -338,7 +352,8 @@ def resnet50(num_classes,
       block='a',
       strides=(1, 1),
       zero_gamma=zero_gamma,
-      use_l2_regularizer=use_l2_regularizer)
+      use_l2_regularizer=use_l2_regularizer,
+      resnetd=resnetd)
   x = identity_block(
       x,
       3, [64, 64, 256],
@@ -353,6 +368,7 @@ def resnet50(num_classes,
       block='c',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer)
+  logging.info("@3 = {}".format(x))
 
   x = conv_block(
       x,
@@ -360,7 +376,8 @@ def resnet50(num_classes,
       stage=3,
       block='a',
       zero_gamma=zero_gamma,
-      use_l2_regularizer=use_l2_regularizer)
+      use_l2_regularizer=use_l2_regularizer,
+      resnetd=resnetd)
   x = identity_block(
       x,
       3, [128, 128, 512],
@@ -382,6 +399,7 @@ def resnet50(num_classes,
       block='d',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer)
+  logging.info("@4 = {}".format(x))
 
   x = conv_block(
       x,
@@ -389,7 +407,8 @@ def resnet50(num_classes,
       stage=4,
       block='a',
       zero_gamma=zero_gamma,
-      use_l2_regularizer=use_l2_regularizer)
+      use_l2_regularizer=use_l2_regularizer,
+      resnetd=resnetd)
   x = identity_block(
       x,
       3, [256, 256, 1024],
@@ -425,6 +444,7 @@ def resnet50(num_classes,
       block='f',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer)
+  logging.info("@5 = {}".format(x))
 
   x = conv_block(
       x,
@@ -432,7 +452,8 @@ def resnet50(num_classes,
       stage=5,
       block='a',
       zero_gamma=zero_gamma,
-      use_l2_regularizer=use_l2_regularizer)
+      use_l2_regularizer=use_l2_regularizer,
+      resnetd=resnetd)
   x = identity_block(
       x,
       3, [512, 512, 2048],
@@ -447,10 +468,12 @@ def resnet50(num_classes,
       block='c',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer)
+  logging.info("@6 = {}".format(x))
 
   if last_pool_channel_type == 'gap':
     rm_axes = [1, 2] if backend.image_data_format() == 'channels_last' else [2, 3]
     x = layers.Lambda(lambda x: backend.mean(x, rm_axes), name='reduce_mean')(x)
+    logging.info("@gap = {}".format(x))
 
   else:
     pool_type, channel_size = last_pool_channel_type.split('_')
