@@ -69,7 +69,7 @@ def change_keras_layer(use_tf_keras_layers=False):
     layers = tf_python_keras_layers
 
 
-def _gen_l2_regularizer(use_l2_regularizer=True):
+def gen_l2_regularizer(use_l2_regularizer=True):
   return regularizers.l2(L2_WEIGHT_DECAY) if use_l2_regularizer else None
 
 
@@ -106,7 +106,7 @@ def identity_block(input_tensor,
       filters1, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2a')(
           input_tensor)
   x = layers.BatchNormalization(
@@ -124,7 +124,7 @@ def identity_block(input_tensor,
       padding='same',
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2b')(
           x)
   x = layers.BatchNormalization(
@@ -140,7 +140,7 @@ def identity_block(input_tensor,
       filters3, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2c')(
           x)
   if zero_gamma:
@@ -201,7 +201,7 @@ def conv_block(input_tensor,
       filters1, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2a')(
           input_tensor)
   x = layers.BatchNormalization(
@@ -220,7 +220,7 @@ def conv_block(input_tensor,
       padding='same',
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2b')(
           x)
   x = layers.BatchNormalization(
@@ -236,7 +236,7 @@ def conv_block(input_tensor,
       filters3, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2c')(
           x)
   if zero_gamma:
@@ -258,7 +258,7 @@ def conv_block(input_tensor,
         strides=strides,
         use_bias=False,
         kernel_initializer='he_normal',
-        kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+        kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
         name=conv_name_base + '1')(
             input_tensor)
   else:
@@ -327,7 +327,7 @@ def resnet50(num_classes,
         padding='valid',
         use_bias=False,
         kernel_initializer='he_normal',
-        kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+        kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
         name='conv1')(
             x)
   else:
@@ -493,8 +493,8 @@ def resnet50(num_classes,
   x = layers.Dense(
       num_classes,
       kernel_initializer=initializers.RandomNormal(stddev=0.01),
-      kernel_regularizer=_gen_l2_regularizer(use_l2_regularizer),
-      bias_regularizer=_gen_l2_regularizer(use_l2_regularizer),
+      kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
+      bias_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name='fc1000')(
           x)
 

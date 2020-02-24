@@ -1,12 +1,6 @@
-import tensorflow as tf
-
 from absl import logging
 
-from tensorflow.python.keras import backend
-from tensorflow.python.keras import initializers
 from tensorflow.python.keras import layers as tf_python_keras_layers
-from tensorflow.python.keras import models
-from tensorflow.python.keras import regularizers
 
 import resnet_model
 
@@ -39,7 +33,7 @@ class ResnetD(NetworkTweaks):
       padding='same',
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=resnet_model._gen_l2_regularizer(self.use_l2_regularizer),
+      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer),
       name='dconv1')(
       x)
     x = layers.BatchNormalization(
@@ -54,7 +48,7 @@ class ResnetD(NetworkTweaks):
       num_filters // 2, (3, 3),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=resnet_model._gen_l2_regularizer(self.use_l2_regularizer),
+      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer),
       name='dconv2')(
       x)
     x = layers.BatchNormalization(
@@ -69,7 +63,7 @@ class ResnetD(NetworkTweaks):
       num_filters, (3, 3),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=resnet_model._gen_l2_regularizer(self.use_l2_regularizer),
+      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer),
       name='dconv3')(
       x)
 
@@ -84,7 +78,7 @@ class ResnetD(NetworkTweaks):
       num_filters, (1, 1),
       use_bias=False,
       kernel_initializer='he_normal',
-      kernel_regularizer=resnet_model._gen_l2_regularizer(self.use_l2_regularizer))(
+      kernel_regularizer=resnet_model.gen_l2_regularizer(self.use_l2_regularizer))(
       x)
 
     return x
