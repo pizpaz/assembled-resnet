@@ -24,11 +24,13 @@ from absl import app
 from absl import flags
 from absl import logging
 import tensorflow as tf
+from tensorflow.python.ops import array_ops
 
 import imagenet_preprocessing
 import common
 import resnet_model
 import network_tweaks
+import losses
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
@@ -61,10 +63,14 @@ flags.DEFINE_boolean(name='use_resnet_d', default=False,
                      help=flags_core.help_wrap('Use resnet_d architecture. '
                                                'For more details, refer to https://arxiv.org/abs/1812.01187'))
 
+#### Regularization
+flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
+                   help=flags_core.help_wrap('If greater than 0 then smooth the labels.'))
+
 ##### Experimental
 # 0=>gap
 flags.DEFINE_string(name='last_pool_channel_type', default="gap",
-                     help=flags_core.help_wrap(''))
+                    help=flags_core.help_wrap(''))
 
 
 
@@ -320,12 +326,12 @@ def run(flags_obj):
       current_step = optimizer.iterations.numpy()
 
     train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-    training_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'training_accuracy', dtype=tf.float32)
     test_loss = tf.keras.metrics.Mean('test_loss', dtype=tf.float32)
-    test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-        'test_accuracy', dtype=tf.float32)
 
+    categorical_cross_entopy_and_acc = losses.CategoricalCrossEntropyAndAcc(
+                                          batch_size=flags_obj.batch_size,
+                                          num_classes=imagenet_preprocessing.NUM_CLASSES,
+                                          label_smoothing=flags_obj.label_smoothing)
     trainable_variables = model.trainable_variables
 
     def step_fn(inputs):
@@ -333,10 +339,8 @@ def run(flags_obj):
       images, labels = inputs
       with tf.GradientTape() as tape:
         logits = model(images, training=True)
-
-        prediction_loss = tf.keras.losses.sparse_categorical_crossentropy(
-            labels, logits)
-        loss = tf.reduce_sum(prediction_loss) * (1.0/ flags_obj.batch_size)
+        loss = categorical_cross_entopy_and_acc.loss_and_update_acc(labels, logits, training=True)
+        #loss = tf.reduce_sum(prediction_loss) * (1.0/ flags_obj.batch_size)
         num_replicas = tf.distribute.get_strategy().num_replicas_in_sync
 
         if flags_obj.single_l2_loss_op:
@@ -362,7 +366,6 @@ def run(flags_obj):
 
       optimizer.apply_gradients(zip(grads, trainable_variables))
       train_loss.update_state(loss)
-      training_accuracy.update_state(labels, logits)
 
     @tf.function
     def train_steps(iterator, steps):
@@ -381,11 +384,9 @@ def run(flags_obj):
       def step_fn(inputs):
         images, labels = inputs
         logits = model(images, training=False)
-        loss = tf.keras.losses.sparse_categorical_crossentropy(labels,
-                                                               logits)
-        loss = tf.reduce_sum(loss) * (1.0/ flags_obj.batch_size)
+        loss = categorical_cross_entopy_and_acc.loss_and_update_acc(labels, logits, training=False)
+        #loss = tf.reduce_sum(loss) * (1.0/ flags_obj.batch_size)
         test_loss.update_state(loss)
-        test_accuracy.update_state(labels, logits)
 
       if strategy:
         strategy.experimental_run_v2(step_fn, args=(next(iterator),))
@@ -405,7 +406,7 @@ def run(flags_obj):
     time_callback.on_train_begin()
     for epoch in range(current_step // per_epoch_steps, train_epochs):
       train_loss.reset_states()
-      training_accuracy.reset_states()
+      categorical_cross_entopy_and_acc.training_accuracy.reset_states()
 
       steps_in_current_epoch = 0
       while steps_in_current_epoch < per_epoch_steps:
@@ -421,15 +422,18 @@ def run(flags_obj):
         time_callback.on_batch_end( steps_in_current_epoch+epoch*per_epoch_steps)
         steps_in_current_epoch += steps
 
-      logging.info('Training loss: %s, accuracy: %s at epoch %d',
+      #temp_loss = array_ops.identity(categorical_cross_entopy_and_acc.training_loss).numpy()
+      #temp_loss = categorical_cross_entopy_and_acc.training_loss.numpy()
+      logging.info('Training loss: %s, accuracy: %s, cross_entropy: %s at epoch %d',
                    train_loss.result().numpy(),
-                   training_accuracy.result().numpy(),
+                   categorical_cross_entopy_and_acc.training_accuracy.result().numpy(),
+                   0.,
                    epoch + 1)
 
       if (not flags_obj.skip_eval and
           (epoch + 1) % flags_obj.epochs_between_evals == 0):
         test_loss.reset_states()
-        test_accuracy.reset_states()
+        categorical_cross_entopy_and_acc.test_accuracy.reset_states()
 
         test_iter = iter(test_ds)
         for _ in range(eval_steps):
@@ -437,7 +441,7 @@ def run(flags_obj):
 
         logging.info('Test loss: %s, accuracy: %s%% at epoch: %d',
                      test_loss.result().numpy(),
-                     test_accuracy.result().numpy(),
+                     categorical_cross_entopy_and_acc.test_accuracy.result().numpy(),
                      epoch + 1)
 
       if flags_obj.enable_checkpoint_and_export:
@@ -449,15 +453,17 @@ def run(flags_obj):
       if summary_writer:
         current_steps = steps_in_current_epoch + (epoch * per_epoch_steps)
         with summary_writer.as_default():
+          #tf.summary.scalar('train_cross_entropy', categorical_cross_entopy_and_acc.training_loss.numpy(), current_steps)
           tf.summary.scalar('train_loss', train_loss.result(), current_steps)
-          tf.summary.scalar('train_accuracy', training_accuracy.result(), current_steps)
+          tf.summary.scalar('train_accuracy', categorical_cross_entopy_and_acc.training_accuracy.result(),
+                            current_steps)
           lr_for_monitor = lr_schedule(current_steps)
           if callable(lr_for_monitor):
             lr_for_monitor = lr_for_monitor()
           tf.summary.scalar('learning_rate', lr_for_monitor, current_steps)
           tf.summary.scalar('eval_loss', test_loss.result(), current_steps)
           tf.summary.scalar(
-              'eval_accuracy', test_accuracy.result(), current_steps)
+              'eval_accuracy', categorical_cross_entopy_and_acc.test_accuracy.result(), current_steps)
 
     time_callback.on_train_end()
     if summary_writer:
@@ -467,9 +473,9 @@ def run(flags_obj):
     train_result = None
     if not flags_obj.skip_eval:
       eval_result = [test_loss.result().numpy(),
-                     test_accuracy.result().numpy()]
+                     categorical_cross_entopy_and_acc.test_accuracy.result().numpy()]
       train_result = [train_loss.result().numpy(),
-                      training_accuracy.result().numpy()]
+                      categorical_cross_entopy_and_acc.training_accuracy.result().numpy()]
 
     stats = build_stats(train_result, eval_result, time_callback)
     return stats
