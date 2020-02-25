@@ -205,35 +205,35 @@ class PiecewiseConstantDecayWithWarmup(
     }
 
 class CosineDecayWithWarmup(LearningRateDecayWithWarmup):
-    """Cosine decay with warmup schedule"""
+  """Cosine decay with warmup schedule"""
 
-    def __init__(self, base_lr, batch_size, epoch_size, warmup_epochs, train_epochs, compute_lr_on_cpu=True,
-                 name=None):
-        super(CosineDecayWithWarmup, self).__init__(compute_lr_on_cpu)
-        print('Cosine Decay With Warmup')
-        steps_per_epoch = epoch_size // batch_size
+  def __init__(self, base_lr, batch_size, epoch_size, warmup_epochs, train_epochs, compute_lr_on_cpu=True,
+               name=None):
+    super(CosineDecayWithWarmup, self).__init__(compute_lr_on_cpu)
+    print('Cosine Decay With Warmup')
+    steps_per_epoch = epoch_size // batch_size
 
-        self.initial_lr = base_lr
-        self.warmup_steps = warmup_epochs * steps_per_epoch
-        self.total_steps = int(steps_per_epoch * train_epochs) - self.warmup_steps
-        self.name = name
+    self.initial_lr = base_lr
+    self.warmup_steps = warmup_epochs * steps_per_epoch
+    self.total_steps = int(steps_per_epoch * train_epochs) - self.warmup_steps
+    self.name = name
 
-    def _get_learning_rate(self, step):
-        super(CosineDecayWithWarmup, self)._get_learning_rate(step)
-        with tf.compat.v1.name_scope(self.name, 'CosineDecayWithWarmup',
-                                     [self.initial_lr, self.warmup_steps, self.total_steps,
-                                      self.compute_lr_on_cpu]):
-            def warmup_lr(step):
-                return self.initial_lr * (
-                        tf.cast(step, tf.float32) / tf.cast(self.warmup_steps, tf.float32))
+  def _get_learning_rate(self, step):
+    super(CosineDecayWithWarmup, self)._get_learning_rate(step)
+    with tf.compat.v1.name_scope(self.name, 'CosineDecayWithWarmup',
+                                 [self.initial_lr, self.warmup_steps, self.total_steps,
+                                  self.compute_lr_on_cpu]):
+      def warmup_lr(step):
+        return self.initial_lr * (
+                tf.cast(step, tf.float32) / tf.cast(self.warmup_steps, tf.float32))
 
-            def cosine_lr(step):
-                global_step_except_warmup_step = step - self.warmup_steps
-                return tf.compat.v1.train.cosine_decay(self.initial_lr, global_step_except_warmup_step, self.total_steps)
+      def cosine_lr(step):
+        global_step_except_warmup_step = step - self.warmup_steps
+        return tf.compat.v1.train.cosine_decay(self.initial_lr, global_step_except_warmup_step, self.total_steps)
 
-            return tf.cond(step < self.warmup_steps,
-                           lambda: warmup_lr(step),
-                           lambda: cosine_lr(step))
+      return tf.cond(step < self.warmup_steps,
+                     lambda: warmup_lr(step),
+                     lambda: cosine_lr(step))
 
 def get_optimizer(learning_rate=0.1):
   """Returns optimizer to use."""
