@@ -29,6 +29,7 @@ from tensorflow.python.ops import array_ops
 import imagenet_preprocessing
 import common
 import resnet_model
+import regularizers
 import network_tweaks
 import losses
 from official.utils.flags import core as flags_core
@@ -62,10 +63,17 @@ flags.DEFINE_string(name='learning_rate_decay_type', short_name='lrdt', default=
 flags.DEFINE_boolean(name='use_resnet_d', default=False,
                      help=flags_core.help_wrap('Use resnet_d architecture. '
                                                'For more details, refer to https://arxiv.org/abs/1812.01187'))
+flags.DEFINE_integer(name='max_pooling', default=0,
+                     help=flags_core.help_wrap('Use max pooling instead of stride conv.'))
 
 #### Regularization
 flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
                    help=flags_core.help_wrap('If greater than 0 then smooth the labels.'))
+flags.DEFINE_integer(name='mixup_type', short_name='mixup_type', default=0,
+                     help=flags_core.help_wrap(
+                      'Use mixup data augmentation. For more details, refer to https://arxiv.org/abs/1710.09412'
+                      '타입이 0이면, mixup을 사용하지 않는다.'
+                      '타입이 1이면, batch_size의 두배를 mixup해서 batch_size만큼의 데이터를 만든다'))
 
 ##### Experimental
 # 0=>gap
@@ -137,10 +145,14 @@ def get_input_dataset(flags_obj, strategy):
     input_fn = imagenet_preprocessing.input_fn
 
   def _train_dataset_fn(ctx=None):
+    if flags_obj.mixup_type > 0:
+      train_batch_size = batch_size*2
+    else:
+      train_batch_size = batch_size
     train_ds = input_fn(
         is_training=True,
         data_dir=flags_obj.data_dir,
-        batch_size=batch_size,
+        batch_size=train_batch_size,
         parse_record_fn=imagenet_preprocessing.parse_record,
         datasets_num_private_threads=flags_obj.datasets_num_private_threads,
         dtype=dtype,
@@ -251,9 +263,16 @@ def run(flags_obj):
       num_packs=flags_obj.num_packs,
       tpu_address=flags_obj.tpu)
 
+  if flags_obj.mixup_type > 0:
+    mixup = regularizers.Mixup(0.2, flags_obj)
+    train_iteration = mixup
+  else:
+    mixup = None
+    train_iteration = common.TrainIteration(flags_obj)
+
   train_ds, test_ds = get_input_dataset(flags_obj, strategy)
-  per_epoch_steps, train_epochs, eval_steps = get_num_train_iterations(
-      flags_obj)
+
+  per_epoch_steps, train_epochs, eval_steps = train_iteration.get_num_train_iterations()
   steps_per_loop = min(flags_obj.steps_per_loop, per_epoch_steps)
   logging.info("Training %d epochs, each epoch has %d steps, "
                "total steps: %d; Eval %d steps",
@@ -279,7 +298,8 @@ def run(flags_obj):
         zero_gamma=flags_obj.zero_gamma,
         last_pool_channel_type=flags_obj.last_pool_channel_type,
         use_l2_regularizer=use_l2_regularizer,
-        resnetd=resnetd)
+        resnetd=resnetd,
+        max_pooling=flags_obj.max_pooling)
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
@@ -338,9 +358,13 @@ def run(flags_obj):
       """Per-Replica StepFn."""
       images, labels = inputs
       with tf.GradientTape() as tape:
+        #labels = tf.squeeze(labels)
+        #onehot_labels = tf.one_hot(labels, imagenet_preprocessing.NUM_CLASSES, dtype=tf.float32, axis=-1)
+        #if mixup is not None:
+        #  images, onehot_labels = mixup(images, onehot_labels)
         logits = model(images, training=True)
+        #loss = categorical_cross_entopy_and_acc.loss_and_update_acc_onehot(labels, onehot_labels, logits, training=True)
         loss = categorical_cross_entopy_and_acc.loss_and_update_acc(labels, logits, training=True)
-        #loss = tf.reduce_sum(prediction_loss) * (1.0/ flags_obj.batch_size)
         num_replicas = tf.distribute.get_strategy().num_replicas_in_sync
 
         if flags_obj.single_l2_loss_op:

@@ -169,7 +169,8 @@ def conv_block(input_tensor,
                strides=(2, 2),
                zero_gamma=False,
                use_l2_regularizer=True,
-               resnetd=None):
+               resnetd=None,
+               use_max_pooling=False):
   """A block that has a conv layer at shortcut.
 
   Note that from stage 3,
@@ -213,7 +214,31 @@ def conv_block(input_tensor,
           x)
   x = layers.Activation('relu')(x)
 
-  x = layers.Conv2D(
+  if use_max_pooling:
+    if strides == (1, 1):
+      x = layers.Conv2D(
+        filters2,
+        kernel_size,
+        padding='same',
+        use_bias=False,
+        kernel_initializer='he_normal',
+        kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
+        name=conv_name_base + '2b')(
+        x)
+    else:
+      logging.info('@MAX pooling at stage {}'.format(stage))
+      x = layers.MaxPooling2D(pool_size=strides)(x)
+      x = layers.Conv2D(
+        filters2,
+        kernel_size,
+        padding='same',
+        use_bias=False,
+        kernel_initializer='he_normal',
+        kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
+        name=conv_name_base + '2b')(
+        x)
+  else:
+    x = layers.Conv2D(
       filters2,
       kernel_size,
       strides=strides,
@@ -222,7 +247,8 @@ def conv_block(input_tensor,
       kernel_initializer='he_normal',
       kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       name=conv_name_base + '2b')(
-          x)
+      x)
+
   x = layers.BatchNormalization(
       axis=bn_axis,
       momentum=BATCH_NORM_DECAY,
@@ -283,7 +309,8 @@ def resnet50(num_classes,
              last_pool_channel_type='gap',
              use_l2_regularizer=True,
              rescale_inputs=False,
-             resnetd=None):
+             resnetd=None,
+             max_pooling=0):
   """Instantiates the ResNet50 architecture.
 
   Args:
@@ -377,7 +404,8 @@ def resnet50(num_classes,
       block='a',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
-      resnetd=resnetd)
+      resnetd=resnetd,
+      use_max_pooling=True if max_pooling >= 3 else False)
   x = identity_block(
       x,
       3, [128, 128, 512],
@@ -408,7 +436,8 @@ def resnet50(num_classes,
       block='a',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
-      resnetd=resnetd)
+      resnetd=resnetd,
+      use_max_pooling=True if max_pooling >= 4 else False)
   x = identity_block(
       x,
       3, [256, 256, 1024],
@@ -453,7 +482,8 @@ def resnet50(num_classes,
       block='a',
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
-      resnetd=resnetd)
+      resnetd=resnetd,
+      use_max_pooling=True if max_pooling >= 5 else False)
   x = identity_block(
       x,
       3, [512, 512, 2048],

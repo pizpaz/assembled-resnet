@@ -25,7 +25,13 @@ class CategoricalCrossEntropyAndAcc(LossAndAccuracy):
       self.training_loss = 0.
       self.test_loss = 0.
 
+    '''
     self.training_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+      'training_accuracy', dtype=tf.float32)
+    self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+      'test_accuracy', dtype=tf.float32)
+    '''
+    self.training_accuracy = tf.keras.metrics.CategoricalAccuracy(
       'training_accuracy', dtype=tf.float32)
     self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
       'test_accuracy', dtype=tf.float32)
@@ -43,6 +49,21 @@ class CategoricalCrossEntropyAndAcc(LossAndAccuracy):
     if training:
       self.training_loss = loss
       self.training_accuracy.update_state(labels, logits)
+    else:
+      self.test_loss = loss
+      self.test_accuracy.update_state(labels, logits)
+
+    return loss
+
+  def loss_and_update_acc_onehot(self, labels, onehot_labels, logits, training):
+    logging.info('labels=({}), onehot_labels=({}), logits=({})'.format(labels, onehot_labels, logits))
+    loss = tf.keras.losses.categorical_crossentropy(onehot_labels, logits,
+                                                    label_smoothing=self.label_smoothing)
+    loss = tf.reduce_sum(loss) * (1.0 / self.batch_size)
+
+    if training:
+      self.training_loss = loss
+      self.training_accuracy.update_state(onehot_labels, logits)
     else:
       self.test_loss = loss
       self.test_accuracy.update_state(labels, logits)
