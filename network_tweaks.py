@@ -83,3 +83,28 @@ class ResnetD(NetworkTweaks):
       x)
 
     return x
+
+###TEMP CODE
+#### TODO: refer to https://github.com/tensorflow/tensorflow/blob/v2.1.0/tensorflow/python/keras/layers/pooling.py#L282-L328
+#### we should rewrite this applying keras style.
+def generalized_mean_pooling(x, p=3, data_format='channels_first'):
+  if data_format == 'channels_first':
+    _, c, h, w = x.shape.as_list()
+    reduce_axis = [2, 3]
+  else:
+    _, h, w, c = x.shape.as_list()
+    reduce_axis = [1, 2]
+
+  N = tf.to_float(tf.multiply(h, w))
+  if x.dtype == tf.float16:
+    # 수치 안정성을 위해 fp16 시 fp32로 캐스팅 후 계산 후, 다시 fp16으로 바꾼다.
+    x = tf.cast(x, tf.float32)
+
+  epsilon = 1e-6
+  x = tf.clip_by_value(x, epsilon, 1e12)
+  x_p = tf.pow(x, p)
+  x_p_sum = tf.maximum(tf.reduce_sum(x_p, axis=reduce_axis, keep_dims=True), epsilon)
+  pooled_x = tf.pow(N, -1.0 / p) * tf.pow(x_p_sum, 1 / p)
+  if x.dtype == tf.float16:
+    pooled_x = tf.cast(pooled_x, tf.float16)
+  return pooled_x

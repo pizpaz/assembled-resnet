@@ -478,6 +478,7 @@ def run(flags_obj):
         current_steps = steps_in_current_epoch + (epoch * per_epoch_steps)
         with summary_writer.as_default():
           #tf.summary.scalar('train_cross_entropy', categorical_cross_entopy_and_acc.training_loss.numpy(), current_steps)
+          #tf.summary.image('Training data', train_iter[0][0], max_outputs=1, step=current_steps)
           tf.summary.scalar('train_loss', train_loss.result(), current_steps)
           tf.summary.scalar('train_accuracy', categorical_cross_entopy_and_acc.training_accuracy.result(),
                             current_steps)
