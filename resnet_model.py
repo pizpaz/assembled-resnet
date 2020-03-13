@@ -504,7 +504,10 @@ def resnet50(num_classes,
     rm_axes = [1, 2] if backend.image_data_format() == 'channels_last' else [2, 3]
     x = layers.Lambda(lambda x: backend.mean(x, rm_axes), name='reduce_mean')(x)
     logging.info("@gap = {}".format(x))
-
+  elif last_pool_channel_type == 'gmp':
+    rm_axes = [1, 2] if backend.image_data_format() == 'channels_last' else [2, 3]
+    x = layers.Lambda(lambda x: backend.max(x, rm_axes), name='reduce_max')(x)
+    logging.info("@gmp = {}".format(x))
   else:
     pool_type, channel_size = last_pool_channel_type.split('_')
     channel_size = int(channel_size)
