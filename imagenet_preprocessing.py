@@ -43,17 +43,17 @@ import numpy as np
 from preprocessing.np_autoaugment import augmentation_transforms
 from preprocessing.np_autoaugment import policies
 
-DEFAULT_IMAGE_SIZE = 224
-NUM_CHANNELS = 3
-NUM_CLASSES = 1001
+#DEFAULT_IMAGE_SIZE = 224
+#NUM_CHANNELS = 3
+#NUM_CLASSES = 1001
 
-NUM_IMAGES = {
-    'train': 1281167,
-    'validation': 50000,
-}
+#NUM_IMAGES = {
+#    'train': 1281167,
+#    'validation': 50000,
+#}
 
-_NUM_TRAIN_FILES = 1024
-_SHUFFLE_BUFFER = 10000
+#_NUM_TRAIN_FILES = 1024
+#_SHUFFLE_BUFFER = 10000
 
 _R_MEAN = 123.68
 _G_MEAN = 116.78
@@ -67,6 +67,7 @@ _RESIZE_MIN = 256
 
 
 def process_record_dataset(dataset,
+                           dataset_conf,
                            is_training,
                            batch_size,
                            shuffle_buffer,
@@ -117,7 +118,7 @@ def process_record_dataset(dataset,
 
   # Parses the raw records into images and labels.
   dataset = dataset.map(
-      lambda value: parse_record_fn(value, is_training, dtype, autoaugment_type),
+      lambda value: parse_record_fn(value, dataset_conf, is_training, dtype, autoaugment_type),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
   dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
 
@@ -136,16 +137,16 @@ def process_record_dataset(dataset,
   return dataset
 
 
-def get_filenames(is_training, data_dir):
+def get_filenames(is_training, data_dir, train_regex='train-*', val_regex='validation-*'):
   """Return filenames for dataset."""
   if is_training:
-    return [
-        os.path.join(data_dir, 'train-%05d-of-01024' % i)
-        for i in range(_NUM_TRAIN_FILES)]
+    path = os.path.join(data_dir, train_regex)
+    matching_files = tf.io.gfile.glob(path)
+    return matching_files
   else:
-    return [
-        os.path.join(data_dir, 'validation-%05d-of-00128' % i)
-        for i in range(128)]
+    path = os.path.join(data_dir, val_regex)
+    matching_files = tf.io.gfile.glob(path)
+    return matching_files
 
 
 def parse_example_proto(example_serialized):
@@ -218,7 +219,7 @@ def parse_example_proto(example_serialized):
   return features['image/encoded'], label, bbox
 
 
-def parse_record(raw_record, is_training, dtype, autoaugment_type):
+def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type):
   """Parses a record containing a training example of an image.
 
   The input record is parsed into a label and image, and the image is passed
@@ -239,9 +240,9 @@ def parse_record(raw_record, is_training, dtype, autoaugment_type):
   image = preprocess_image(
       image_buffer=image_buffer,
       bbox=bbox,
-      output_height=DEFAULT_IMAGE_SIZE,
-      output_width=DEFAULT_IMAGE_SIZE,
-      num_channels=NUM_CHANNELS,
+      output_height=dataset_conf.default_image_size,
+      output_width=dataset_conf.default_image_size,
+      num_channels=dataset_conf.num_channels,
       is_training=is_training,
       autoaugment_type=autoaugment_type)
   image = tf.cast(image, dtype)
@@ -283,6 +284,7 @@ def get_parse_record_fn(use_keras_image_data_format=False):
 
 def input_fn(is_training,
              data_dir,
+             dataset_conf,
              batch_size,
              num_epochs=1,
              dtype=tf.float32,
@@ -331,7 +333,7 @@ def input_fn(is_training,
 
   if is_training:
     # Shuffle the input files
-    dataset = dataset.shuffle(buffer_size=_NUM_TRAIN_FILES)
+    dataset = dataset.shuffle(buffer_size=dataset_conf.num_train_files)
 
   # Convert to individual records.
   # cycle_length = 10 means that up to 10 files will be read and deserialized in
@@ -349,9 +351,10 @@ def input_fn(is_training,
 
   return process_record_dataset(
       dataset=dataset,
+      dataset_conf=dataset_conf,
       is_training=is_training,
       batch_size=batch_size,
-      shuffle_buffer=_SHUFFLE_BUFFER,
+      shuffle_buffer=dataset_conf.shuffle_buffer,
       parse_record_fn=parse_record_fn,
       num_epochs=num_epochs,
       dtype=dtype,

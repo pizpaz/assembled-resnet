@@ -32,6 +32,8 @@ import resnet_model
 import regularizers
 import network_tweaks
 import losses
+import dataset_config
+
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
@@ -58,6 +60,10 @@ flags.DEFINE_string(name='learning_rate_decay_type', short_name='lrdt', default=
                     help=flags_core.help_wrap(
                     'Specifies how the learning rate is decayed. One of '
                     '"piecewise", "cosine"'))
+#### Common
+flags.DEFINE_string(
+  name='dataset_name', default=None,
+  help=flags_core.help_wrap('imagenet, food100, food101, naver_food547, cub_200_2011'))
 
 #### Network Tweak
 flags.DEFINE_boolean(name='use_resnet_d', default=False,
@@ -116,7 +122,7 @@ def build_stats(train_result, eval_result, time_callback):
   return stats
 
 
-def get_input_dataset(flags_obj, strategy):
+def get_input_dataset(flags_obj, strategy, dataset_conf):
   """Returns the test and train input datasets."""
   dtype = flags_core.get_tf_dtype(flags_obj)
   use_dataset_fn = isinstance(strategy, tf.distribute.experimental.TPUStrategy)
@@ -135,10 +141,10 @@ def get_input_dataset(flags_obj, strategy):
 
   if flags_obj.use_synthetic_data:
     input_fn = common.get_synth_input_fn(
-      height=imagenet_preprocessing.DEFAULT_IMAGE_SIZE,
-      width=imagenet_preprocessing.DEFAULT_IMAGE_SIZE,
-      num_channels=imagenet_preprocessing.NUM_CHANNELS,
-      num_classes=imagenet_preprocessing.NUM_CLASSES,
+      height=dataset_conf.default_image_size,
+      width=dataset_conf.default_image_size,
+      num_channels=dataset_conf.num_channels,
+      num_classes=dataset_conf.num_classes,
       dtype=dtype,
       drop_remainder=True)
   else:
@@ -152,6 +158,7 @@ def get_input_dataset(flags_obj, strategy):
     train_ds = input_fn(
         is_training=True,
         data_dir=flags_obj.data_dir,
+        dataset_conf=dataset_conf,
         batch_size=train_batch_size,
         parse_record_fn=imagenet_preprocessing.parse_record,
         datasets_num_private_threads=flags_obj.datasets_num_private_threads,
@@ -175,6 +182,7 @@ def get_input_dataset(flags_obj, strategy):
       test_ds = input_fn(
           is_training=False,
           data_dir=flags_obj.data_dir,
+          dataset_conf=dataset_conf,
           batch_size=batch_size,
           parse_record_fn=imagenet_preprocessing.parse_record,
           dtype=dtype,
@@ -193,6 +201,7 @@ def get_input_dataset(flags_obj, strategy):
   return train_ds, test_ds
 
 
+'''
 def get_num_train_iterations(flags_obj):
   """Returns the number of training steps, train and test epochs."""
   train_steps = (
@@ -207,7 +216,7 @@ def get_num_train_iterations(flags_obj):
       imagenet_preprocessing.NUM_IMAGES['validation'] // flags_obj.batch_size)
 
   return train_steps, train_epochs, eval_steps
-
+'''
 
 def _steps_to_run(steps_in_current_epoch, steps_per_epoch, steps_per_loop):
   """Calculates steps to run on device."""
@@ -231,6 +240,7 @@ def run(flags_obj):
     Dictionary of training and eval stats.
   """
   print('@@@@enable_eager = {}'.format(flags_obj.enable_eager))
+  dataset_conf = dataset_config.get_config(flags_obj.dataset_name)
   keras_utils.set_session_config(
       enable_eager=flags_obj.enable_eager,
       enable_xla=flags_obj.enable_xla)
@@ -258,7 +268,7 @@ def run(flags_obj):
   strategy = distribution_utils.get_distribution_strategy(
       distribution_strategy=flags_obj.distribution_strategy,
       num_gpus=flags_obj.num_gpus,
-      num_workers=distribution_utils.configure_cluster(),
+      num_workers=distribution_utils.configure_cluster(flags_obj.worker_hosts, flags_obj.task_index),
       all_reduce_alg=flags_obj.all_reduce_alg,
       num_packs=flags_obj.num_packs,
       tpu_address=flags_obj.tpu)
@@ -270,7 +280,7 @@ def run(flags_obj):
     mixup = None
     train_iteration = common.TrainIteration(flags_obj)
 
-  train_ds, test_ds = get_input_dataset(flags_obj, strategy)
+  train_ds, test_ds = get_input_dataset(flags_obj, strategy, dataset_conf)
 
   per_epoch_steps, train_epochs, eval_steps = train_iteration.get_num_train_iterations()
   steps_per_loop = min(flags_obj.steps_per_loop, per_epoch_steps)
@@ -293,7 +303,7 @@ def run(flags_obj):
       resnetd = None
 
     model = resnet_model.resnet50(
-        num_classes=imagenet_preprocessing.NUM_CLASSES,
+        num_classes=dataset_conf.num_classes,
         batch_size=flags_obj.batch_size,
         zero_gamma=flags_obj.zero_gamma,
         last_pool_channel_type=flags_obj.last_pool_channel_type,
@@ -304,7 +314,7 @@ def run(flags_obj):
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
             batch_size=flags_obj.batch_size,
-            epoch_size=imagenet_preprocessing.NUM_IMAGES['train'],
+            epoch_size=dataset_conf.num_images['train'],
             warmup_epochs=common.LR_SCHEDULE[0][1],
             boundaries=list(p[1] for p in common.LR_SCHEDULE[1:]),
             multipliers=list(p[0] for p in common.LR_SCHEDULE),
@@ -313,7 +323,7 @@ def run(flags_obj):
         lr_schedule = common.CosineDecayWithWarmup(
             base_lr=flags_obj.base_learning_rate,
             batch_size=flags_obj.batch_size,
-            epoch_size=imagenet_preprocessing.NUM_IMAGES['train'],
+            epoch_size=dataset_conf.num_images['train'],
             warmup_epochs=common.LR_SCHEDULE[0][1],
             train_epochs=flags_obj.train_epochs,
             compute_lr_on_cpu=True)
@@ -350,7 +360,7 @@ def run(flags_obj):
 
     categorical_cross_entopy_and_acc = losses.CategoricalCrossEntropyAndAcc(
                                           batch_size=flags_obj.batch_size,
-                                          num_classes=imagenet_preprocessing.NUM_CLASSES,
+                                          num_classes=dataset_conf.num_classes,
                                           label_smoothing=flags_obj.label_smoothing)
     trainable_variables = model.trainable_variables
 
@@ -515,5 +525,5 @@ def main(_):
 
 if __name__ == '__main__':
   logging.set_verbosity(logging.INFO)
-  common.define_keras_flags()
+  common.define_keras_flags(pretrained_filepath=True)
   app.run(main)

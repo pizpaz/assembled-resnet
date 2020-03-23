@@ -292,7 +292,7 @@ def undo_set_up_synthetic_data():
       tf.distribute.experimental.MultiWorkerMirroredStrategy)
 
 
-def configure_cluster(worker_hosts=None, task_index=-1):
+def configure_cluster(worker_hosts=None, task_index=0):
   """Set multi-worker cluster spec in TF_CONFIG environment variable.
 
   Args:

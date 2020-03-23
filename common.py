@@ -28,7 +28,7 @@ from tensorflow.python.keras.optimizer_v2 import gradient_descent as gradient_de
 import tensorflow_model_optimization as tfmot
 from official.utils.flags import core as flags_core
 from official.utils.misc import keras_utils
-import imagenet_preprocessing
+import dataset_config
 
 FLAGS = flags.FLAGS
 BASE_LEARNING_RATE = 0.1  # This matches Jing's version.
@@ -118,11 +118,12 @@ class TrainIteration(object):
     self.batch_size = flags_obj.batch_size
     self.train_epochs = flags_obj.train_epochs
     self.train_steps = flags_obj.train_steps
+    self.dataset_conf = dataset_config.get_config(flags_obj.dataset_name)
 
   def get_num_train_iterations(self):
     """Returns the number of training steps, train and test epochs."""
     train_steps = (
-            imagenet_preprocessing.NUM_IMAGES['train'] // self.batch_size)
+            self.dataset_conf.num_images['train'] // self.batch_size)
     train_epochs = self.train_epochs
 
     if self.train_steps:
@@ -130,7 +131,7 @@ class TrainIteration(object):
       train_epochs = 1
 
     eval_steps = (
-            imagenet_preprocessing.NUM_IMAGES['validation'] // self.batch_size)
+            self.dataset_conf.num_images['validation'] // self.batch_size)
 
     return train_steps, train_epochs, eval_steps
 
