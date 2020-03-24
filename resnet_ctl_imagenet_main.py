@@ -311,6 +311,7 @@ def run(flags_obj):
         resnetd=resnetd,
         max_pooling=flags_obj.max_pooling)
 
+
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
             batch_size=flags_obj.batch_size,
@@ -350,7 +351,28 @@ def run(flags_obj):
     current_step = 0
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(flags_obj.model_dir)
-    if latest_checkpoint:
+    def _dense_grad_filter(gvs):
+      """Only apply gradient updates to the final layer.
+
+      This function is used for fine tuning.
+
+      Args:
+        gvs: list of tuples with gradients and variable info
+      Returns:
+        filtered gradients so that only the dense layer remains
+      """
+      return [(n, v) for n, v in gvs if 'layer_with_weights-106' in n]
+
+    if flags_obj.pretrained_filepath:
+      #TODO: It's gonna be working out.
+      logging.info('@@@load pretrained_filepath({})'.format(flags_obj.pretrained_filepath))
+      restore_listed = tf.train.list_variables(flags_obj.pretrained_filepath)
+      ff = _dense_grad_filter(restore_listed)
+      logging.info('@@@restore_listed({})'.format(restore_listed))
+      logging.info('@@@dense = {}'.format(ff))
+      #checkpoint.restore(flags_obj.pretrained_filepath)
+      var_list_all = tf.contrib.framework.get_trainable_variables()
+    elif latest_checkpoint:
       checkpoint.restore(latest_checkpoint)
       logging.info("Load checkpoint %s", latest_checkpoint)
       current_step = optimizer.iterations.numpy()

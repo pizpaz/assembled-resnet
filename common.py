@@ -313,8 +313,10 @@ def get_callbacks(
   if enable_checkpoint_and_export:
     if model_dir is not None:
       ckpt_full_path = os.path.join(model_dir, 'model.ckpt-{epoch:04d}')
+      print('@@@ckpt_full_path = {}'.format(ckpt_full_path))
       callbacks.append(
         tf.keras.callbacks.ModelCheckpoint(ckpt_full_path,
+                                           verbose=1,
                                            save_weights_only=True))
   return callbacks
 

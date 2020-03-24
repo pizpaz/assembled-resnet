@@ -36,5 +36,7 @@ class Food101(Default):
 def get_config(data_name):
   if data_name == 'imagenet':
     return ImageNet()
+  elif data_name == 'food101':
+    return Food101()
   else:
     raise ValueError("Unable to support {} dataset.".format(data_name))

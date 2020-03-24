@@ -251,7 +251,8 @@ def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type)
   # Keras model.
   #label = tf.cast(tf.cast(tf.reshape(label, shape=[1]), dtype=tf.int32) - 1,
   #                dtype=tf.float32)
-  label = tf.cast(tf.reshape(label, shape=[1]), dtype=tf.int32) - 1
+  #label = tf.cast(tf.reshape(label, shape=[1]), dtype=tf.int32) - 1
+  label = tf.cast(tf.reshape(label, shape=[1]), dtype=tf.int32)
 
   return image, label
 
