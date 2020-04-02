@@ -24,7 +24,9 @@ from absl import app
 from absl import flags
 from absl import logging
 import tensorflow as tf
-from tensorflow.python.ops import array_ops
+
+from tensorflow.python.keras import models
+#from tensorflow.python.ops import array_ops
 
 import imagenet_preprocessing
 import common
@@ -309,8 +311,8 @@ def run(flags_obj):
         last_pool_channel_type=flags_obj.last_pool_channel_type,
         use_l2_regularizer=use_l2_regularizer,
         resnetd=resnetd,
-        max_pooling=flags_obj.max_pooling)
-
+        max_pooling=flags_obj.max_pooling,
+        include_top=True if flags_obj.pretrained_filepath == '' else False)
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
@@ -351,30 +353,19 @@ def run(flags_obj):
     current_step = 0
     checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
     latest_checkpoint = tf.train.latest_checkpoint(flags_obj.model_dir)
-    def _dense_grad_filter(gvs):
-      """Only apply gradient updates to the final layer.
-
-      This function is used for fine tuning.
-
-      Args:
-        gvs: list of tuples with gradients and variable info
-      Returns:
-        filtered gradients so that only the dense layer remains
-      """
-      return [(n, v) for n, v in gvs if 'layer_with_weights-106' in n]
 
     if flags_obj.pretrained_filepath:
-      #TODO: It's gonna be working out.
       logging.info('@@@load pretrained_filepath({})'.format(flags_obj.pretrained_filepath))
-      restore_listed = tf.train.list_variables(flags_obj.pretrained_filepath)
-      ff = _dense_grad_filter(restore_listed)
-      logging.info('@@@restore_listed({})'.format(restore_listed))
-      logging.info('@@@dense = {}'.format(ff))
-      #checkpoint.restore(flags_obj.pretrained_filepath)
-      var_list_all = tf.contrib.framework.get_trainable_variables()
+      status = checkpoint.restore(flags_obj.pretrained_filepath)
+      status.assert_existing_objects_matched()
+      x = model.output
+      x = resnet_model.get_top_layer(x, dataset_conf.num_classes, use_l2_regularizer)
+      model = models.Model(model.input, x, name='resnet50')
+      checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
+
+
     elif latest_checkpoint:
       checkpoint.restore(latest_checkpoint)
-      logging.info("Load checkpoint %s", latest_checkpoint)
       current_step = optimizer.iterations.numpy()
 
     train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
@@ -385,6 +376,7 @@ def run(flags_obj):
                                           num_classes=dataset_conf.num_classes,
                                           label_smoothing=flags_obj.label_smoothing)
     trainable_variables = model.trainable_variables
+    #logging.info('trainable variable = {}'.format(model.trainable_variables))
 
     def step_fn(inputs):
       """Per-Replica StepFn."""
@@ -395,6 +387,7 @@ def run(flags_obj):
         #if mixup is not None:
         #  images, onehot_labels = mixup(images, onehot_labels)
         logits = model(images, training=True)
+        logging.info('@@logits = {}'.format(logits))
         #loss = categorical_cross_entopy_and_acc.loss_and_update_acc_onehot(labels, onehot_labels, logits, training=True)
         loss = categorical_cross_entopy_and_acc.loss_and_update_acc(labels, logits, training=True)
         num_replicas = tf.distribute.get_strategy().num_replicas_in_sync
@@ -485,6 +478,7 @@ def run(flags_obj):
                    categorical_cross_entopy_and_acc.training_accuracy.result().numpy(),
                    0.,
                    epoch + 1)
+      #logging.info('@epoch{},,,, trainable variable = {}'.format(epoch +1, model.trainable_variables))
 
       if (not flags_obj.skip_eval and
           (epoch + 1) % flags_obj.epochs_between_evals == 0):
@@ -505,6 +499,11 @@ def run(flags_obj):
             os.path.join(flags_obj.model_dir,
                          'model.ckpt-{}'.format(epoch + 1)))
         logging.info('Saved checkpoint to %s', checkpoint_name)
+        #Add keras save
+        #export_path = os.path.join(flags_obj.model_dir, 'saved_model')
+        #export_path = os.path.join(flags_obj.model_dir, 'h5')
+        #model.save(export_path, include_optimizer=False)
+        #model.save_weights(export_path, save_format='h5')
 
       if summary_writer:
         current_steps = steps_in_current_epoch + (epoch * per_epoch_steps)

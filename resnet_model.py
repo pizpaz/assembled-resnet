@@ -310,7 +310,8 @@ def resnet50(num_classes,
              use_l2_regularizer=True,
              rescale_inputs=False,
              resnetd=None,
-             max_pooling=0):
+             max_pooling=0,
+             include_top=True):
   """Instantiates the ResNet50 architecture.
 
   Args:
@@ -523,17 +524,33 @@ def resnet50(num_classes,
       raise NotImplementedError
     x = layers.Flatten()(x)
 
-  x = layers.Dense(
+  if include_top:
+    logging.info('@@@include top!')
+    x = layers.Dense(
       num_classes,
       kernel_initializer=initializers.RandomNormal(stddev=0.01),
       kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
       bias_regularizer=gen_l2_regularizer(use_l2_regularizer),
-      name='fc1000')(
+      name='fc{}'.format(num_classes))(
           x)
 
-  # A softmax that is followed by the model loss must be done cannot be done
-  # in float16 due to numeric issues. So we pass dtype=float32.
-  x = layers.Activation('softmax', dtype='float32')(x)
+
+    # A softmax that is followed by the model loss must be done cannot be done
+    # in float16 due to numeric issues. So we pass dtype=float32.
+    x = layers.Activation('softmax', dtype='float32')(x)
+  else:
+    logging.info('@@not include top')
 
   # Create model.
   return models.Model(img_input, x, name='resnet50')
+
+def get_top_layer(x, num_classes, use_l2_regularizer):
+  x = layers.Dense(
+    num_classes,
+    kernel_initializer=initializers.RandomNormal(stddev=0.01),
+    kernel_regularizer=gen_l2_regularizer(use_l2_regularizer),
+    bias_regularizer=gen_l2_regularizer(use_l2_regularizer),
+    name = 'fc{}'.format(num_classes))(x)
+  x = layers.Activation('softmax', dtype='float32')(x)
+
+  return x

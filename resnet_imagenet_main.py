@@ -27,16 +27,16 @@ import tensorflow as tf
 
 import tensorflow_model_optimization as tfmot
 
-from official.benchmark.models import trivial_model
-from official.modeling import performance
+#from official.benchmark.models import trivial_model
+#from official.modeling import performance
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
 from official.utils.misc import distribution_utils
 from official.utils.misc import keras_utils
 from official.utils.misc import model_helpers
-from official.vision.image_classification import common
-from official.vision.image_classification import imagenet_preprocessing
-from official.vision.image_classification import resnet_model
+import common
+import imagenet_preprocessing
+import resnet_model
 
 
 def run(flags_obj):
@@ -66,9 +66,12 @@ def run(flags_obj):
   common.set_cudnn_batchnorm_mode()
 
   dtype = flags_core.get_tf_dtype(flags_obj)
+  '''
   performance.set_mixed_precision_policy(
       flags_core.get_tf_dtype(flags_obj),
       flags_core.get_loss_scale(flags_obj, default_for_fp16=128))
+  '''
+
 
   data_format = flags_obj.data_format
   if data_format is None:
@@ -181,10 +184,12 @@ def run(flags_obj):
           optimizer)
 
     # TODO(hongkuny): Remove trivial model usage and move it to benchmark.
+    '''
     if flags_obj.use_trivial_model:
       model = trivial_model.trivial_model(
           imagenet_preprocessing.NUM_CLASSES)
-    elif flags_obj.model == 'resnet50_v1.5':
+    '''
+    if flags_obj.model == 'resnet50_v1.5':
       resnet_model.change_keras_layer(flags_obj.use_tf_keras_layers)
       model = resnet_model.resnet50(
           num_classes=imagenet_preprocessing.NUM_CLASSES)
@@ -290,7 +295,9 @@ def run(flags_obj):
     else:
       # Keras model.save assumes a float32 input designature.
       export_path = os.path.join(flags_obj.model_dir, 'saved_model')
+      export_path2 = os.path.join(flags_obj.model_dir, 'h5')
       model.save(export_path, include_optimizer=False)
+      model.save_weights(export_path2)
 
   if not strategy and flags_obj.explicit_gpu_placement:
     no_dist_strat_device.__exit__()
