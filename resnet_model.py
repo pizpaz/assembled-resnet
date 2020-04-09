@@ -37,6 +37,7 @@ from tensorflow.python.keras import layers as tf_python_keras_layers
 from tensorflow.python.keras import models
 from tensorflow.python.keras import regularizers
 import imagenet_preprocessing
+import constants
 
 L2_WEIGHT_DECAY = 1e-4
 #BATCH_NORM_DECAY = 0.9
@@ -170,7 +171,7 @@ def conv_block(input_tensor,
                zero_gamma=False,
                use_l2_regularizer=True,
                resnetd=None,
-               use_max_pooling=False):
+               pooling_method=None):
   """A block that has a conv layer at shortcut.
 
   Note that from stage 3,
@@ -214,7 +215,7 @@ def conv_block(input_tensor,
           x)
   x = layers.Activation('relu')(x)
 
-  if use_max_pooling:
+  if pooling_method is not None:
     if strides == (1, 1):
       x = layers.Conv2D(
         filters2,
@@ -226,8 +227,15 @@ def conv_block(input_tensor,
         name=conv_name_base + '2b')(
         x)
     else:
-      logging.info('@MAX pooling at stage {}'.format(stage))
-      x = layers.MaxPooling2D(pool_size=strides)(x)
+      if pooling_method == constants.PoolingMethod.max:
+        logging.info('@MAX pooling at stage {}'.format(stage))
+        x = layers.MaxPooling2D(pool_size=strides)(x)
+      elif pooling_method == constants.PoolingMethod.avg:
+        logging.info('@AVG pooling at stage {}'.format(stage))
+        x = layers.AveragePooling2D(pool_size=strides)(x)
+      else:
+        raise NotImplementedError
+
       x = layers.Conv2D(
         filters2,
         kernel_size,
@@ -310,7 +318,7 @@ def resnet50(num_classes,
              use_l2_regularizer=True,
              rescale_inputs=False,
              resnetd=None,
-             max_pooling=0,
+             pooling=None,
              include_top=True):
   """Instantiates the ResNet50 architecture.
 
@@ -320,6 +328,7 @@ def resnet50(num_classes,
     zero_gamma: Initialize γ = 0 for all BN layers that sit at the end of a residual block.
     use_l2_regularizer: whether to use L2 regularizer on Conv/Dense layer.
     rescale_inputs: whether to rescale inputs from 0 to 1.
+    pooling: namedtuple. Pooling(method, until_block)
 
   Returns:
       A Keras model instance.
@@ -406,7 +415,7 @@ def resnet50(num_classes,
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
       resnetd=resnetd,
-      use_max_pooling=True if max_pooling >= 3 else False)
+      pooling_method=pooling.method if pooling.until_block >= 3 else None)
   x = identity_block(
       x,
       3, [128, 128, 512],
@@ -438,7 +447,7 @@ def resnet50(num_classes,
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
       resnetd=resnetd,
-      use_max_pooling=True if max_pooling >= 4 else False)
+      pooling_method = pooling.method if pooling.until_block >= 4 else None)
   x = identity_block(
       x,
       3, [256, 256, 1024],
@@ -484,7 +493,7 @@ def resnet50(num_classes,
       zero_gamma=zero_gamma,
       use_l2_regularizer=use_l2_regularizer,
       resnetd=resnetd,
-      use_max_pooling=True if max_pooling >= 5 else False)
+      pooling_method = pooling.method if pooling.until_block >= 5 else None)
   x = identity_block(
       x,
       3, [512, 512, 2048],

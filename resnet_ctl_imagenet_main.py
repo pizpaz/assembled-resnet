@@ -19,6 +19,8 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+from collections import namedtuple
+from enum import Enum
 
 from absl import app
 from absl import flags
@@ -35,6 +37,7 @@ import regularizers
 import network_tweaks
 import losses
 import dataset_config
+import constants
 
 from official.utils.flags import core as flags_core
 from official.utils.logs import logger
@@ -71,8 +74,8 @@ flags.DEFINE_string(
 flags.DEFINE_boolean(name='use_resnet_d', default=False,
                      help=flags_core.help_wrap('Use resnet_d architecture. '
                                                'For more details, refer to https://arxiv.org/abs/1812.01187'))
-flags.DEFINE_integer(name='max_pooling', default=0,
-                     help=flags_core.help_wrap('Use max pooling instead of stride conv.'))
+flags.DEFINE_string(name='pooling', default=None,
+                    help=flags_core.help_wrap('Use [max|avg] pooling instead of stride conv. ex> avg:3, max:2, ...'))
 
 #### Regularization
 flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
@@ -304,6 +307,13 @@ def run(flags_obj):
     else:
       resnetd = None
 
+    if flags_obj.pooling is not None:
+      sp = flags_obj.pooling.split(':')
+      assert(len(sp) == 2)
+      pooling = constants.Pooling(method=constants.PoolingMethod(sp[0]), until_block=int(sp[1]))
+    else:
+      pooling = constants.Pooling(method=constants.PoolingMethod('none'), until_block=0)
+
     model = resnet_model.resnet50(
         num_classes=dataset_conf.num_classes,
         batch_size=flags_obj.batch_size,
@@ -311,7 +321,7 @@ def run(flags_obj):
         last_pool_channel_type=flags_obj.last_pool_channel_type,
         use_l2_regularizer=use_l2_regularizer,
         resnetd=resnetd,
-        max_pooling=flags_obj.max_pooling,
+        pooling=pooling,
         include_top=True if flags_obj.pretrained_filepath == '' else False)
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
@@ -393,8 +403,9 @@ def run(flags_obj):
         num_replicas = tf.distribute.get_strategy().num_replicas_in_sync
 
         if flags_obj.single_l2_loss_op:
-          l2_loss = resnet_model.L2_WEIGHT_DECAY * 2 * tf.add_n([
-              tf.nn.l2_loss(v)
+          #l2_loss = resnet_model.L2_WEIGHT_DECAY * 2 * tf.add_n([
+          l2_loss = resnet_model.L2_WEIGHT_DECAY * tf.add_n([
+            tf.nn.l2_loss(v)
               for v in trainable_variables
               if 'bn' not in v.name
           ])
