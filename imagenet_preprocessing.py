@@ -544,7 +544,8 @@ def _resize_image(image, height, width):
 
 
 def preprocess_image(image_buffer, bbox, output_height, output_width,
-                     num_channels, is_training=False, autoaugment_type=None):
+                     num_channels, is_training=False, autoaugment_type=None,
+                     append_full_sized_image=False):
   """Preprocesses the given image.
 
   Preprocessing includes decoding, cropping, and resizing for both training

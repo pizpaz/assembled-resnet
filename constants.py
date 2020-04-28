@@ -11,3 +11,8 @@ class PoolingMethod(Enum):
   max = 'max'
   avg = 'avg'
   none = 'none'
+
+Branch = namedtuple('branch', 'method')
+class BranchMethod(Enum):
+  regular = 'regular'
+  wide_and_deep = 'wide_and_deep'

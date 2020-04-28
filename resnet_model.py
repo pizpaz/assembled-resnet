@@ -319,7 +319,8 @@ def resnet50(num_classes,
              rescale_inputs=False,
              resnetd=None,
              pooling=None,
-             include_top=True):
+             include_top=True,
+             branch=None):
   """Instantiates the ResNet50 architecture.
 
   Args:

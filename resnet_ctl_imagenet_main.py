@@ -77,6 +77,9 @@ flags.DEFINE_boolean(name='use_resnet_d', default=False,
 flags.DEFINE_string(name='pooling', default=None,
                     help=flags_core.help_wrap('Use [max|avg] pooling instead of stride conv. ex> avg:3, max:2, ...'))
 
+flags.DEFINE_string(name='branch_method', default='regular',
+                    help=flags_core.help_wrap('Network branch method [regular|wide_and_deep]'))
+
 #### Regularization
 flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
                    help=flags_core.help_wrap('If greater than 0 then smooth the labels.'))
@@ -90,6 +93,7 @@ flags.DEFINE_integer(name='mixup_type', short_name='mixup_type', default=0,
 # 0=>gap
 flags.DEFINE_string(name='last_pool_channel_type', default="gap",
                     help=flags_core.help_wrap(''))
+
 
 
 
@@ -313,6 +317,8 @@ def run(flags_obj):
       pooling = constants.Pooling(method=constants.PoolingMethod(sp[0]), until_block=int(sp[1]))
     else:
       pooling = constants.Pooling(method=constants.PoolingMethod('none'), until_block=0)
+
+    branch = constants.Branch(method=constants.BranchMethod(flags_obj.branch_method))
 
     model = resnet_model.resnet50(
         num_classes=dataset_conf.num_classes,
