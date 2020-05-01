@@ -70,6 +70,9 @@ flags.DEFINE_string(
   name='dataset_name', default=None,
   help=flags_core.help_wrap('imagenet, food100, food101, naver_food547, cub_200_2011'))
 
+flags.DEFINE_integer(name='train_image_size', short_name='tis', default=None,
+                   help=flags_core.help_wrap('training image size'))
+
 #### Network Tweak
 flags.DEFINE_boolean(name='use_resnet_d', default=False,
                      help=flags_core.help_wrap('Use resnet_d architecture. '
@@ -150,8 +153,8 @@ def get_input_dataset(flags_obj, strategy, dataset_conf):
 
   if flags_obj.use_synthetic_data:
     input_fn = common.get_synth_input_fn(
-      height=dataset_conf.default_image_size,
-      width=dataset_conf.default_image_size,
+      height=dataset_conf.train_image_size,
+      width=dataset_conf.train_image_size,
       num_channels=dataset_conf.num_channels,
       num_classes=dataset_conf.num_classes,
       dtype=dtype,
@@ -250,6 +253,9 @@ def run(flags_obj):
   """
   print('@@@@enable_eager = {}'.format(flags_obj.enable_eager))
   dataset_conf = dataset_config.get_config(flags_obj.dataset_name)
+  if flags_obj.train_image_size is not None:
+    dataset_conf.train_image_size = flags_obj.train_image_size
+
   keras_utils.set_session_config(
       enable_eager=flags_obj.enable_eager,
       enable_xla=flags_obj.enable_xla)
@@ -311,17 +317,20 @@ def run(flags_obj):
     else:
       resnetd = None
 
-    if flags_obj.pooling is not None:
+    if flags_obj.pooling is not None and not flags_obj.pooling == 'none':
       sp = flags_obj.pooling.split(':')
       assert(len(sp) == 2)
       pooling = constants.Pooling(method=constants.PoolingMethod(sp[0]), until_block=int(sp[1]))
+      logging.info('@@ block pooling is {}'.format(pooling))
     else:
       pooling = constants.Pooling(method=constants.PoolingMethod('none'), until_block=0)
+      logging.info('@@ block pooling is None. We will use stride conv.')
 
     branch = constants.Branch(method=constants.BranchMethod(flags_obj.branch_method))
 
     model = resnet_model.resnet50(
         num_classes=dataset_conf.num_classes,
+        train_image_size=dataset_conf.train_image_size,
         batch_size=flags_obj.batch_size,
         zero_gamma=flags_obj.zero_gamma,
         last_pool_channel_type=flags_obj.last_pool_channel_type,

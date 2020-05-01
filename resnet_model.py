@@ -312,6 +312,7 @@ def conv_block(input_tensor,
 
 
 def resnet50(num_classes,
+             train_image_size,
              batch_size=None,
              zero_gamma=False,
              last_pool_channel_type='gap',
@@ -325,6 +326,7 @@ def resnet50(num_classes,
 
   Args:
     num_classes: `int` number of classes for image classification.
+    train_image_size: TODO
     batch_size: Size of the batches for each step.
     zero_gamma: Initialize γ = 0 for all BN layers that sit at the end of a residual block.
     use_l2_regularizer: whether to use L2 regularizer on Conv/Dense layer.
@@ -334,7 +336,7 @@ def resnet50(num_classes,
   Returns:
       A Keras model instance.
   """
-  input_shape = (224, 224, 3)
+  input_shape = (train_image_size, train_image_size, 3)
   img_input = layers.Input(shape=input_shape, batch_size=batch_size)
   if rescale_inputs:
     # Hub image modules expect inputs in the range [0, 1]. This rescales these

@@ -240,8 +240,8 @@ def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type)
   image = preprocess_image(
       image_buffer=image_buffer,
       bbox=bbox,
-      output_height=dataset_conf.default_image_size,
-      output_width=dataset_conf.default_image_size,
+      output_height=dataset_conf.train_image_size,
+      output_width=dataset_conf.train_image_size,
       num_channels=dataset_conf.num_channels,
       is_training=is_training,
       autoaugment_type=autoaugment_type)

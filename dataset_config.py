@@ -5,7 +5,7 @@ from __future__ import print_function
 
 class Default(object):
   shuffle_buffer = 1000
-  default_image_size = 224
+  train_image_size = 224
   num_channels = 3
   num_images = {
     'train': 0,
