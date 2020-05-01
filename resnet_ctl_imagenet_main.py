@@ -83,6 +83,18 @@ flags.DEFINE_string(name='pooling', default=None,
 flags.DEFINE_string(name='branch_method', default='regular',
                     help=flags_core.help_wrap('Network branch method [regular|wide_and_deep]'))
 
+'''
+flags.DEFINE_list(name='block_layers_config', default=[([64,64,256], 3, 'none', 'same'), ([128,128,512], 4, 'stride', 'same'),
+                                                       ([256,256,1024], 6, 'stride', 'same'),
+                                                       ([512,512,2048], 3, 'stride', 'same')],
+                  help=flags_core.help_wrap(
+                  'Block layers config: (output channels size list, block size, downsampling method[none,min,max,stride], padding_type[same,valid]'))
+'''
+
+flags.DEFINE_list(name='block_layers_config', default=['64:64:256:3:none:same', '128:128:512:4:stride:same', '256:256:1024:6:stride:same', '512:512:2048:3:stride:same'],
+                  help=flags_core.help_wrap(
+                    'Block layers config: (output channels size list, block size, downsampling method[none,min,max,stride], padding_type[same,valid]'))
+
 #### Regularization
 flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
                    help=flags_core.help_wrap('If greater than 0 then smooth the labels.'))
@@ -252,6 +264,8 @@ def run(flags_obj):
     Dictionary of training and eval stats.
   """
   print('@@@@enable_eager = {}'.format(flags_obj.enable_eager))
+  block_layers_config = constants.BlockLayersConfig(flags_obj.block_layers_config)
+
   dataset_conf = dataset_config.get_config(flags_obj.dataset_name)
   if flags_obj.train_image_size is not None:
     dataset_conf.train_image_size = flags_obj.train_image_size
@@ -328,9 +342,10 @@ def run(flags_obj):
 
     branch = constants.Branch(method=constants.BranchMethod(flags_obj.branch_method))
 
-    model = resnet_model.resnet50(
+    model = resnet_model.resnet50_new(
         num_classes=dataset_conf.num_classes,
         train_image_size=dataset_conf.train_image_size,
+        block_layers_config=block_layers_config,
         batch_size=flags_obj.batch_size,
         zero_gamma=flags_obj.zero_gamma,
         last_pool_channel_type=flags_obj.last_pool_channel_type,
@@ -338,6 +353,7 @@ def run(flags_obj):
         resnetd=resnetd,
         pooling=pooling,
         include_top=True if flags_obj.pretrained_filepath == '' else False)
+    return 0
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
