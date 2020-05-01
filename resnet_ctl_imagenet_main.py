@@ -353,7 +353,6 @@ def run(flags_obj):
         resnetd=resnetd,
         pooling=pooling,
         include_top=True if flags_obj.pretrained_filepath == '' else False)
-    return 0
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(

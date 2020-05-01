@@ -280,8 +280,7 @@ def conv_block(input_tensor,
   if resnetd is None:
     shortcut = layers.Conv2D(
         filters3,
-        #kernel_size=(1, 1),
-        kernel_size=kernel_size,
+        kernel_size=(1,1) if padding_type == constants.PaddingType.same else kernel_size,
         strides=(1,1) if pooling_method == constants.PoolingMethod.none else STRIDE_SIZE,
         use_bias=False,
         kernel_initializer='he_normal',
