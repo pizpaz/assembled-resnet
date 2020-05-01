@@ -63,7 +63,7 @@ CHANNEL_MEANS = [_R_MEAN, _G_MEAN, _B_MEAN]
 # The lower bound for the smallest side of the image for aspect-preserving
 # resizing. For example, if an image is 500 x 1000, it will be resized to
 # _RESIZE_MIN x (_RESIZE_MIN * 2).
-_RESIZE_MIN = 256
+#_RESIZE_MIN = 256
 
 
 def process_record_dataset(dataset,
@@ -302,6 +302,7 @@ def input_fn(is_training,
   Args:
     is_training: A boolean denoting whether the input is for training.
     data_dir: The directory containing the input data.
+    dataset_conf: ...
     batch_size: The number of samples per batch.
     num_epochs: The number of epochs to repeat the dataset.
     dtype: Data type to use for images/features
@@ -580,7 +581,7 @@ def preprocess_image(image_buffer, bbox, output_height, output_width,
   else:
     # For validation, we want to decode, resize, then just crop the middle.
     image = tf.image.decode_jpeg(image_buffer, channels=num_channels)
-    image = _aspect_preserving_resize(image, _RESIZE_MIN)
+    image = _aspect_preserving_resize(image, int(min(output_height, output_width) / 0.875))
     image = _central_crop(image, output_height, output_width)
 
   image.set_shape([output_height, output_width, num_channels])

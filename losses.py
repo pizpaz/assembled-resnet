@@ -25,16 +25,17 @@ class CategoricalCrossEntropyAndAcc(LossAndAccuracy):
       self.training_loss = 0.
       self.test_loss = 0.
 
-    '''
-    self.training_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-      'training_accuracy', dtype=tf.float32)
-    self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+    if label_smoothing > 0.0:
+      self.training_accuracy = tf.keras.metrics.CategoricalAccuracy(
+        'training_accuracy', dtype=tf.float32)
+      self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+        'test_accuracy', dtype=tf.float32)
+    else:
+      self.training_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+        'training_accuracy', dtype=tf.float32)
+      self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
       'test_accuracy', dtype=tf.float32)
-    '''
-    self.training_accuracy = tf.keras.metrics.CategoricalAccuracy(
-      'training_accuracy', dtype=tf.float32)
-    self.test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
-      'test_accuracy', dtype=tf.float32)
+
 
   def loss_and_update_acc(self, labels, logits, training):
     if self.label_smoothing > 0.0:
