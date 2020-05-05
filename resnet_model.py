@@ -277,10 +277,20 @@ def conv_block(input_tensor,
     name=bn_name_base + '2c')(
     x)
 
+  '''
+  pad_name='pad' + str(stage) + block + '_branch'
+  if pooling_method == constants.PoolingMethod.none:
+    x = layers.ZeroPadding2D(padding=(1,1), name=pad_name)(x)
+  else:
+    x = layers.ZeroPadding2D(padding=((1,0),(1,0)), name=pad_name)(x)
+  '''
+
+
   if resnetd is None:
     shortcut = layers.Conv2D(
       filters3,
       kernel_size=(1, 1) if padding_type == constants.PaddingType.same else kernel_size,
+      #kernel_size=(1, 1),
       strides=(1, 1) if pooling_method == constants.PoolingMethod.none else STRIDE_SIZE,
       use_bias=False,
       kernel_initializer='he_normal',
@@ -562,7 +572,8 @@ def resnet50_new(num_classes,
                  resnetd=None,
                  pooling=None,
                  include_top=True,
-                 branch=None):
+                 no_init_padding=False,
+                 branch=None,):
   """Instantiates the ResNet50 architecture.
 
   Args:
@@ -600,7 +611,11 @@ def resnet50_new(num_classes,
   else:  # channels_last
     bn_axis = 3
 
-  x = layers.ZeroPadding2D(padding=(3, 3), name='conv1_pad')(x)
+  if not no_init_padding :
+    x = layers.ZeroPadding2D(padding=(3, 3), name='conv1_pad')(x)
+  else:
+    logging.info('@NO Init Padding')
+
   if resnetd is None:
     x = layers.Conv2D(
       64, (7, 7),

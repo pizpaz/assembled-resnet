@@ -95,6 +95,8 @@ flags.DEFINE_list(name='block_layers_config', default=['64:64:256:3:none:same', 
                   help=flags_core.help_wrap(
                     'Block layers config: (output channels size list, block size, downsampling method[none,min,max,stride], padding_type[same,valid]'))
 
+flags.DEFINE_boolean(name='no_init_padding', default=False,
+                     help=flags_core.help_wrap('no init padding'))
 #### Regularization
 flags.DEFINE_float(name='label_smoothing', short_name='lblsm', default=0.0,
                    help=flags_core.help_wrap('If greater than 0 then smooth the labels.'))
@@ -352,7 +354,8 @@ def run(flags_obj):
         use_l2_regularizer=use_l2_regularizer,
         resnetd=resnetd,
         pooling=pooling,
-        include_top=True if flags_obj.pretrained_filepath == '' else False)
+        include_top=True if flags_obj.pretrained_filepath == '' else False,
+        no_init_padding=flags_obj.no_init_padding)
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
