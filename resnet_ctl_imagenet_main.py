@@ -110,6 +110,8 @@ flags.DEFINE_integer(name='mixup_type', short_name='mixup_type', default=0,
 # 0=>gap
 flags.DEFINE_string(name='last_pool_channel_type', default="gap",
                     help=flags_core.help_wrap(''))
+flags.DEFINE_boolean(name='no_sidemargin_eval_image', default=False,
+                     help=flags_core.help_wrap('no side margin eval image'))
 
 
 
@@ -212,6 +214,7 @@ def get_input_dataset(flags_obj, strategy, dataset_conf):
           batch_size=batch_size,
           parse_record_fn=imagenet_preprocessing.parse_record,
           dtype=dtype,
+          no_sidemargin_eval_image=flags_obj.no_sidemargin_eval_image,
           input_context=ctx)
       return test_ds
 

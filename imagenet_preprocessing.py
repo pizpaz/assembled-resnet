@@ -77,6 +77,7 @@ def process_record_dataset(dataset,
                            datasets_num_private_threads=None,
                            drop_remainder=False,
                            tf_data_experimental_slack=False,
+                           no_sidemargin_eval_image=False,
                            autoaugment_type=None):
   """Given a Dataset with raw records, return an iterator over the records.
 
@@ -118,7 +119,7 @@ def process_record_dataset(dataset,
 
   # Parses the raw records into images and labels.
   dataset = dataset.map(
-      lambda value: parse_record_fn(value, dataset_conf, is_training, dtype, autoaugment_type),
+      lambda value: parse_record_fn(value, dataset_conf, is_training, dtype, autoaugment_type, no_sidemargin_eval_image),
       num_parallel_calls=tf.data.experimental.AUTOTUNE)
   dataset = dataset.batch(batch_size, drop_remainder=drop_remainder)
 
@@ -219,7 +220,7 @@ def parse_example_proto(example_serialized):
   return features['image/encoded'], label, bbox
 
 
-def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type):
+def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type, no_sidemargin_eval_image):
   """Parses a record containing a training example of an image.
 
   The input record is parsed into a label and image, and the image is passed
@@ -244,7 +245,8 @@ def parse_record(raw_record, dataset_conf, is_training, dtype, autoaugment_type)
       output_width=dataset_conf.train_image_size,
       num_channels=dataset_conf.num_channels,
       is_training=is_training,
-      autoaugment_type=autoaugment_type)
+      autoaugment_type=autoaugment_type,
+      no_sidemargin_eval_image=no_sidemargin_eval_image)
   image = tf.cast(image, dtype)
 
   # Subtract one so that labels are in [0, 1000), and cast to float32 for
@@ -296,7 +298,8 @@ def input_fn(is_training,
              tf_data_experimental_slack=False,
              training_dataset_cache=False,
              autoaugment_type=None,
-             filenames=None):
+             filenames=None,
+             no_sidemargin_eval_image=False):
   """Input function which provides batches for train or eval.
 
   Args:
@@ -364,6 +367,7 @@ def input_fn(is_training,
       drop_remainder=drop_remainder,
       tf_data_experimental_slack=tf_data_experimental_slack,
       autoaugment_type=autoaugment_type,
+      no_sidemargin_eval_image=no_sidemargin_eval_image
   )
 
 
@@ -546,7 +550,7 @@ def _resize_image(image, height, width):
 
 def preprocess_image(image_buffer, bbox, output_height, output_width,
                      num_channels, is_training=False, autoaugment_type=None,
-                     append_full_sized_image=False):
+                     no_sidemargin_eval_image=False, append_full_sized_image=False):
   """Preprocesses the given image.
 
   Preprocessing includes decoding, cropping, and resizing for both training
@@ -581,7 +585,11 @@ def preprocess_image(image_buffer, bbox, output_height, output_width,
   else:
     # For validation, we want to decode, resize, then just crop the middle.
     image = tf.image.decode_jpeg(image_buffer, channels=num_channels)
-    image = _aspect_preserving_resize(image, int(min(output_height, output_width) / 0.875))
+    if no_sidemargin_eval_image:
+      logging.info('@ no side maring eval image')
+      image = _aspect_preserving_resize(image, int(min(output_height, output_width)+1))
+    else:
+      image = _aspect_preserving_resize(image, int(min(output_height, output_width) / 0.875))
     image = _central_crop(image, output_height, output_width)
 
   image.set_shape([output_height, output_width, num_channels])
