@@ -112,6 +112,10 @@ flags.DEFINE_string(name='last_pool_channel_type', default="gap",
                     help=flags_core.help_wrap(''))
 flags.DEFINE_boolean(name='no_sidemargin_eval_image', default=False,
                      help=flags_core.help_wrap('no side margin eval image'))
+flags.DEFINE_boolean(name='use_final_features_interaction', default=False,
+                     help=flags_core.help_wrap('use final features interaction'))
+flags.DEFINE_string(name='final_features_manipulation', default=False,
+                     help=flags_core.help_wrap('final features manipulation'))
 
 
 
@@ -347,7 +351,7 @@ def run(flags_obj):
 
     branch = constants.Branch(method=constants.BranchMethod(flags_obj.branch_method))
 
-    model = resnet_model.resnet50_new(
+    model = resnet_model.resnet50(
         num_classes=dataset_conf.num_classes,
         train_image_size=dataset_conf.train_image_size,
         block_layers_config=block_layers_config,
@@ -358,7 +362,8 @@ def run(flags_obj):
         resnetd=resnetd,
         pooling=pooling,
         include_top=True if flags_obj.pretrained_filepath == '' else False,
-        no_init_padding=flags_obj.no_init_padding)
+        no_init_padding=flags_obj.no_init_padding,
+        use_final_features_interaction=flags_obj.use_final_features_interaction)
 
     if flags_obj.learning_rate_decay_type == 'piecewise':
         lr_schedule = common.PiecewiseConstantDecayWithWarmup(
